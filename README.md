@@ -2,6 +2,10 @@
 
 A Python backend for tracking shop inventory. Built by Kevin Nyagaka to demonstrate HTTP APIs, SQLite transactions, validation, pagination, and a stock movement audit trail. No third party packages are required.
 
+## Live preview
+
+[Try the interactive stockroom preview](https://kevin-nyagaka-portfolio.nyagaka.chatgpt.site/stockroom.html). It demonstrates the inventory workflow in the browser. The Python server below runs locally and stores data in SQLite.
+
 ## Run
 
 Requires Python 3.10+.

@@ -1,49 +1,34 @@
 # Stockroom API
 
-A Python backend for tracking shop inventory. Built by Kevin Nyagaka to demonstrate HTTP APIs, SQLite transactions, validation, pagination, and a stock movement audit trail. No third party packages are required.
+An authenticated inventory backend built with Python, Flask and SQLite. Each shop has an owner and staff membership; inventory requests check membership and scope item queries to that shop. Stock adjustments and their actor-attributed movement records commit together.
 
-## Live preview
+## Run locally
 
-[Try the interactive stockroom preview](https://kevin-nyagaka-portfolio.nyagaka.chatgpt.site/stockroom.html). It demonstrates the inventory workflow in the browser. The Python server below runs locally and stores data in SQLite.
+Requires Python 3.12 or newer.
 
-## Run
-
-Requires Python 3.10+.
-
-```bash
-python3 app.py
+```sh
+python -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+python app.py
 ```
 
-The server runs at `http://localhost:8000`. Set `PORT` to change the port or `STOCKROOM_DB` to set the SQLite file path. The database is created automatically.
+The development API listens on http://127.0.0.1:8000. Run `python -m unittest discover -s tests -v` for the automated suite.
 
-## Try it
+## What the tests demonstrate
 
-```bash
-curl -X POST http://localhost:8000/items -H 'Content-Type: application/json' -d '{"sku":"PAD-001","name":"Game controller","quantity":5}'
-curl 'http://localhost:8000/items?limit=20&offset=0'
-curl -X POST http://localhost:8000/items/1/adjust -H 'Content-Type: application/json' -d '{"change":-2,"reason":"Sold two"}'
-curl http://localhost:8000/items/1/movements
-```
+Authentication, password and token hashing, expiry and logout, shared login attempt limits, denied cross-shop reads and writes, owner/staff permissions, validation, shop-specific SKUs, rollback on audit failure, concurrent attempts to sell the last unit, and persistence across application restarts. Tests use isolated temporary databases and exercise real SQLite transactions.
 
-## API
+## Deployment and design
 
-| Method | Route | Purpose |
-| --- | --- | --- |
-| GET | `/health` | Health status |
-| GET | `/items?limit=20&offset=0` | Paginated items and total count |
-| POST | `/items` | Create item with `sku`, `name`, and optional `quantity` |
-| GET | `/items/{id}` | Fetch one item |
-| POST | `/items/{id}/adjust` | Adjust stock with `change` and `reason` |
-| GET | `/items/{id}/movements` | Latest 100 movements |
+- [API contract](docs/API.md)
+- [Deployment, verification and backup](docs/DEPLOYMENT.md)
+- [Decisions and interview walkthrough](docs/DECISIONS.md)
 
-All responses are JSON. Invalid input returns HTTP 400; unknown records return 404; duplicate SKU or insufficient stock returns 409. See [API documentation](docs/API.md) for request and response examples.
+The Docker image runs Gunicorn as a non-root user; Compose provides persistent database storage. This repository does **not** yet establish a verified public backend deployment. The existing [browser preview](https://kevin-nyagaka-portfolio.nyagaka.chatgpt.site/stockroom.html) is a separate demonstration and does not exercise this API.
 
-## Verify
+This is a breaking change from the original unauthenticated `/items` API. Start with a fresh database; the application refuses the old unscoped schema. Back up old data before any manually reviewed migration.
 
-```bash
-python3 -m unittest discover -s tests -v
-```
+## Current limits
 
-## Design
-
-Each adjustment and its movement record share a SQLite transaction. A conditional update prevents concurrent requests from making stock negative. This demo has no user authentication and should not be used for real inventory until access control is added.
+Designed for a small, single-instance portfolio service. SQLite serializes writes; horizontal scaling needs a shared database and a revised limiter. There is no email verification, password recovery, membership removal, frontend integration or account deletion yet. Add upstream request limits before public exposure; the application limiter only covers login attempts per email. Do not put customer data into the demo until those operational requirements are addressed.

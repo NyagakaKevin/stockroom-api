@@ -1,16 +1,24 @@
-# API documentation
+# API contract
 
-Base URL: `http://localhost:8000`. Send JSON request bodies with `Content-Type: application/json`.
+All request bodies are JSON objects. Protected routes require `Authorization: Bearer <access_token>`. Tokens expire after one hour and logout revokes the current token. Use HTTPS outside localhost; keep passwords and tokens out of logs, URLs and source control.
 
-| Request | Body | Success response |
+| Method | Path | Body / purpose |
 | --- | --- | --- |
-| `GET /health` | None | `200 {"status":"ok"}` |
-| `POST /items` | `{"sku":"PAD-001","name":"Game controller","quantity":5}` | `201` item record |
-| `GET /items?limit=20&offset=0` | None | `200 {"items":[...],"total":1,"limit":20,"offset":0}` |
-| `GET /items/1` | None | `200` item record |
-| `POST /items/1/adjust` | `{"change":-2,"reason":"Sold two"}` | `200` updated item record |
-| `GET /items/1/movements` | None | `200 {"movements":[...]}` newest first |
+| GET | `/health` | Public database readiness check |
+| POST | `/auth/register` | `email`, `password` (12–128 characters); returns user, 201 |
+| POST | `/auth/login` | `email`, `password`; returns `access_token`, `token_type`, Unix `expires_at` |
+| POST | `/auth/logout` | Revoke current session, 204 |
+| GET | `/shops` | Current user's memberships |
+| POST | `/shops` | `name`; creates shop and owner membership, 201 |
+| POST | `/shops/{shop}/members` | Owner only: registered user's `email`; grants staff, 201 |
+| GET | `/shops/{shop}/items?limit=20&offset=0` | Items, total, limit and offset; limit 1–100 |
+| POST | `/shops/{shop}/items` | `sku`, `name`, optional `quantity` (default 0), 201 |
+| GET | `/shops/{shop}/items/{item}` | Shop-scoped item |
+| POST | `/shops/{shop}/items/{item}/adjust` | Nonzero integer `change`, `reason` |
+| GET | `/shops/{shop}/items/{item}/movements` | Latest 100 changes with actor ID |
 
-An item record looks like `{"id":1,"sku":"PAD-001","name":"Game controller","quantity":5,"created_at":"2026-09-28T07:00:00+00:00"}`. A movement looks like `{"id":1,"item_id":1,"change":5,"reason":"Opening stock","created_at":"2026-09-28T07:00:00+00:00"}`. Creating an item with positive quantity records an opening movement.
+Example workflow: register, log in, create a shop, create `{ "sku": "PEN-01", "name": "Blue pen", "quantity": 10 }`, then adjust `{ "change": -2, "reason": "Sale" }`. Use IDs returned by creation responses.
 
-`limit` accepts 1–100 and defaults to 20. `offset` is nonnegative and defaults to 0. `sku` is unique and 1–40 characters; `name` is 1–120 characters; `quantity` is a nonnegative integer. Adjustments need a nonzero integer change and a reason of 1–160 characters. Excessive deductions return `409 {"error":"Insufficient stock"}`. Other errors use the shape `{"error":"Message"}`.
+Owners and staff can read and change inventory. Only owners can add members. A supplied role never grants ownership. SKUs are unique within a shop. Quantities are integers from 0 to 2147483647; booleans and floats are rejected. Changes cannot oversell or overflow. Request bodies are limited to 16 KiB.
+
+Expected errors use `{ "error": "message" }`: 400 invalid input, 401 missing/expired authentication, 403 insufficient owner permission, 404 absent or inaccessible shop/item, 409 duplicate or invalid stock adjustment, 413 oversized body, 429 login limit, 503 database unavailable. Unexpected server failures return 500. Login permits five attempts per email in 15 minutes, including successful attempts; counters persist across workers. Old global `/items` routes return 404.
